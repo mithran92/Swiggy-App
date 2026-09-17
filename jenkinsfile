@@ -10,7 +10,10 @@ pipeline{
     stages {
         stage("Sonarqube Analysis "){
             steps{
-                withSonarQubeEnv('sonar-server') {
+                withSonarQubeEnv(
+                    installationName: 'sonar-server',
+                    credentialsId: 'sonar-token'
+                ){
                     sh ''' 
                     $SCANNER_HOME/bin/sonar-scanner \
                         -Dsonar.projectName=Swiggy \
