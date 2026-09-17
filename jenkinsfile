@@ -1,68 +1,86 @@
-pipeline{
+pipeline {
+
     agent any
-    tools{
+
+    tools {
         jdk 'jdk21'
         nodejs 'node23'
     }
+
     environment {
-        SCANNER_HOME=tool 'sonar-scanner'
+        SCANNER_HOME = tool 'sonar-scanner'
     }
+
     stages {
-        stage("Sonarqube Analysis "){
-            steps{
-                withSonarQubeEnv(
-                    installationName: 'sonar-server',
-                    credentialsId: 'sonar-token'
-                ){
-                    sh ''' 
-                    $SCANNER_HOME/bin/sonar-scanner \
-                        -Dsonar.projectName=Swiggy \
-                        -Dsonar.projectKey=Swiggy 
-                    '''
+
+        stage("Sonarqube Analysis") {
+            steps {
+
+                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+
+                    withSonarQubeEnv('sonar-server') {
+
+                        sh '''
+                        $SCANNER_HOME/bin/sonar-scanner \
+                            -Dsonar.projectName=Swiggy \
+                            -Dsonar.projectKey=Swiggy \
+                            -Dsonar.token=$SONAR_TOKEN
+                        '''
+                    }
                 }
             }
         }
-        stage("quality gate"){
-           steps {
+
+        stage("quality gate") {
+            steps {
                 script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token' 
+                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
                 }
-            } 
+            }
         }
+
         stage('Install Dependencies') {
             steps {
                 sh "npm install"
             }
         }
+
         stage('OWASP FS SCAN') {
             steps {
                 dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit', odcInstallation: 'DP-Check'
                 dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
             }
         }
+
         stage('TRIVY FS SCAN') {
             steps {
                 sh "trivy fs . > trivyfs.txt"
             }
         }
-        stage("Docker Build & Push"){
-            steps{
-                script{
-                   withDockerRegistry(credentialsId: 'docker-creds', toolName: 'docker'){   
-                       sh "docker build -t swiggy ."
-                       sh "docker tag swiggy kastrov/swiggy:latest "
-                       sh "docker push kastrov/swiggy:latest "
+
+        stage("Docker Build & Push") {
+            steps {
+                script {
+
+                    withDockerRegistry(credentialsId: 'docker-creds', toolName: 'docker') {
+
+                        sh "docker build -t swiggy ."
+                        sh "docker tag swiggy kastrov/swiggy:latest"
+                        sh "docker push kastrov/swiggy:latest"
+
                     }
                 }
             }
         }
-        stage("TRIVY"){
-            steps{
-                sh "trivy image kastrov/swiggy:latest > trivy.txt" 
+
+        stage("TRIVY") {
+            steps {
+                sh "trivy image kastrov/swiggy:latest > trivy.txt"
             }
         }
-        stage('Deploy to container'){
-            steps{
+
+        stage('Deploy to container') {
+            steps {
                 sh '''
                 docker rm -f swiggy || true
                 docker run -d --name swiggy -p 3000:3000 kastrov/swiggy:latest
