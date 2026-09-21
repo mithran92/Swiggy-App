@@ -1,94 +1,93 @@
-pipeline {
-
-    agent any
-
-    tools {
-        jdk 'jdk21'
-        nodejs 'node23'
-    }
-
-    environment {
-        SCANNER_HOME = tool 'sonar-scanner'
-    }
-
-    stages {
-
-        stage("Sonarqube Analysis") {
-            steps {
-
-                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
-
-                    withSonarQubeEnv('sonar-server') {
-
-                        sh '''
-                        $SCANNER_HOME/bin/sonar-scanner \
-                            -Dsonar.projectName=Swiggy \
-                            -Dsonar.projectKey=Swiggy \
-                            -Dsonar.token=$SONAR_TOKEN
-                        '''
-                    }
-                }
-            }
-        }
-
-        stage("quality gate") {
-            steps {
-                script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
-                }
-            }
-        }
-
-        stage('Install Dependencies') {
-            steps {
-                sh "npm install"
-            }
-        }
-
-        stage('OWASP FS SCAN') {
-            steps {
-                withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) {
-                    dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit --nvdApiKey $NVD_API_KEY', odcInstallation: 'DP-Check'
-                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml'
-                
-                }
-            }
-        }
-        
-        stage('TRIVY FS SCAN') {
-            steps {
-                sh "trivy fs . > trivyfs.txt"
-            }
-        }
-
-        stage("Docker Build & Push") {
-            steps {
-                script {
-
-                    withDockerRegistry(credentialsId: 'docker-creds', toolName: 'docker') {
-
-                        sh "docker build -t swiggy ."
-                        sh "docker tag swiggy kastrov/swiggy:latest"
-                        sh "docker push kastrov/swiggy:latest"
-
-                    }
-                }
-            }
-        }
-
-        stage("TRIVY") {
-            steps {
-                sh "trivy image kastrov/swiggy:latest > trivy.txt"
-            }
-        }
-
-        stage('Deploy to container') {
-            steps {
-                sh '''
-                docker rm -f swiggy || true
-                docker run -d --name swiggy -p 3000:3000 kastrov/swiggy:latest
-                '''
-            }
-        }
-    }
+pipeline { 
+ 
+    agent any 
+ 
+    tools { 
+        jdk 'jdk21' 
+        nodejs 'node23' 
+    } 
+ 
+    environment { 
+        SCANNER_HOME = tool 'sonar-scanner' 
+    } 
+ 
+    stages { 
+ 
+        stage("Sonarqube Analysis") { 
+            steps { 
+ 
+                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) { 
+ 
+                    withSonarQubeEnv('sonar-server') { 
+ 
+                        sh ''' 
+                        $SCANNER_HOME/bin/sonar-scanner \ 
+                            -Dsonar.projectName=Swiggy \ 
+                            -Dsonar.projectKey=Swiggy \ 
+                            -Dsonar.token=$SONAR_TOKEN 
+                        ''' 
+                    } 
+                } 
+            } 
+        } 
+ 
+        stage("quality gate") { 
+            steps { 
+                script { 
+                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token' 
+                } 
+            } 
+        } 
+ 
+        stage('Install Dependencies') { 
+            steps { 
+                sh "npm install" 
+            } 
+        } 
+ 
+        stage('OWASP FS SCAN') { 
+            steps { 
+                withCredentials([string(credentialsId: 'nvd-api-key', variable: 'NVD_API_KEY')]) { 
+                    dependencyCheck additionalArguments: '--scan ./ --disableYarnAudit --disableNodeAudit --nvdApiKey $NVD_API_KEY', odcInstallation: 'DP-Check' 
+                    dependencyCheckPublisher pattern: '**/dependency-check-report.xml' 
+                } 
+            } 
+        } 
+         
+        stage('TRIVY FS SCAN') { 
+            steps { 
+                sh "trivy fs . > trivyfs.txt" 
+            } 
+        } 
+ 
+        stage("Docker Build & Push") { 
+            steps { 
+                script { 
+ 
+                    withDockerRegistry(credentialsId: 'docker-creds', toolName: 'docker') { 
+ 
+                        sh "docker build -t swiggy ." 
+                        sh "docker tag swiggy mithranr/swiggy:latest" 
+                        sh "docker push mithranr/swiggy:latest" 
+ 
+                    } 
+                } 
+            } 
+        } 
+ 
+        stage("TRIVY") { 
+            steps { 
+                sh "trivy image mithranr/swiggy:latest > trivy.txt" 
+            } 
+        } 
+ 
+        stage('Deploy to container') { 
+            steps { 
+                sh ''' 
+                docker rm -f swiggy || true 
+                docker run -d --name swiggy -p 3000:3000 mithranr/swiggy:latest 
+                ''' 
+            } 
+        } 
+    } 
 }
