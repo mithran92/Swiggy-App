@@ -20,12 +20,12 @@ pipeline {
  
                     withSonarQubeEnv('sonar-server') { 
  
-                        sh ''' 
-                        $SCANNER_HOME/bin/sonar-scanner \ 
-                            -Dsonar.projectName=Swiggy \ 
-                            -Dsonar.projectKey=Swiggy \ 
-                            -Dsonar.token=$SONAR_TOKEN 
-                        ''' 
+                        sh '''
+                        $SCANNER_HOME/bin/sonar-scanner \
+                            -Dsonar.projectName=Swiggy \
+                            -Dsonar.projectKey=Swiggy \
+                            -Dsonar.token=$SONAR_TOKEN
+                        '''
                     } 
                 } 
             } 
